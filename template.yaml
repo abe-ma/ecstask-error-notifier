@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  ClusterName:
+    Type: String
+    Default: 'foo'
+  SlackWebHook:
+    Type: String
+    Default: 'https://hooks.slack.com/services/hogehoge/hugahuga'
+  SlackChannel:
+    Type: String
+    Default: '#_general'
+
+Resources:
+  Function:
+    DependsOn:
+      - FunctionRole
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: 'index.lambda_handler'
+      Runtime: 'python3.6'
+      Role: !GetAtt [ Role, Arn ]
+      Events:
+        cloudWatchEvents:
+          Type: CloudWatchEvent
+          Properties:
+            Pattern:
+              source:
+                - 'aws.ecs'
+              detail-type:
+                - 'ECS Task State Change'
+              detail:
+                clusterArn:
+                  - !Sub 'arn:aws:ecs:${AWS::Region}:${AWS:AccountId}:cluster/${ClusterName}'
+                lastStatus:
+                  - 'STOPPED'
+      Environment:
+        Variables:
+          WEBHOOK: !Ref SlackWebHook
+          CHANNEL: !Ref SlackChannel
+
+  Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Effect: 'Allow'
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/CloudWatchFullAccess
